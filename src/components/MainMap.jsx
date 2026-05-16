@@ -122,7 +122,7 @@ export default function MainMap({ isTracking, onUpdateDistance, onWalkFinish }) 
 
         setCurrentPos([latitude, longitude]);
         setError(null);
-        
+        console.log(currentPos);
         if (isTracking) {
           setPath((prev) => {
             const lastPoint = prev[prev.length - 1];
