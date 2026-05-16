@@ -1,65 +1,82 @@
-import Image from "next/image";
+"use client";
+import { useState } from "react";
+import dynamic from "next/dynamic";
+
+// IMPORTANT: We use dynamic import with ssr: false 
+// This prevents the "window is not defined" error during Next.js builds.
+const MainMap = dynamic(() => import("@/components/MainMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-screen w-screen items-center justify-center bg-slate-950">
+      <div className="text-center">
+        <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-slate-400 font-medium animate-pulse">Initializing Trace Engine...</p>
+      </div>
+    </div>
+  ),
+});
 
 export default function Home() {
+  const [isTracking, setIsTracking] = useState(false);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.js file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="relative w-screen h-screen overflow-hidden bg-slate-950">
+      
+      {/* 1. THE MAP BASELAYER */}
+      <div className="absolute inset-0 z-0">
+        <MainMap isTracking={isTracking} />
+      </div>
+
+      {/* 2. OVERLAY: HEADER */}
+      <div className="absolute top-6 left-4 right-4 z-10 pointer-events-none">
+        <div className="max-w-md mx-auto bg-slate-900/80 backdrop-blur-xl border border-white/10 p-5 rounded-3xl shadow-2xl pointer-events-auto">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-white font-black text-xl tracking-tighter italic">TRACE</h1>
+              <p className="text-slate-400 text-[10px] uppercase tracking-[0.2em] font-bold">Personal Heatmap v1.0</p>
+            </div>
+            {isTracking && (
+              <div className="flex items-center gap-2 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
+                <div className="h-2 w-2 bg-red-500 rounded-full animate-ping" />
+                <span className="text-red-500 text-[10px] font-black uppercase">Live</span>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      </div>
+
+      {/* 3. OVERLAY: BOTTOM CONTROLS */}
+      <div className="absolute bottom-10 left-4 right-4 z-10 pointer-events-none">
+        <div className="max-w-md mx-auto flex flex-col gap-4 pointer-events-auto">
+          
+          {/* Stats Bar (Mockup for now, we'll add logic in Phase 2/3) */}
+          <div className="grid grid-cols-2 gap-2 bg-slate-900/90 backdrop-blur-lg border border-white/5 p-3 rounded-2xl shadow-xl">
+             <div className="text-center">
+                <p className="text-slate-500 text-[10px] uppercase font-bold">Distance</p>
+                <p className="text-white font-mono font-bold">0.00 km</p>
+             </div>
+             <div className="text-center border-l border-white/10">
+                <p className="text-slate-500 text-[10px] uppercase font-bold">Duration</p>
+                <p className="text-white font-mono font-bold">00:00:00</p>
+             </div>
+          </div>
+
+          {/* Main Action Button */}
+          <button
+            onClick={() => setIsTracking(!isTracking)}
+            className={`w-full py-5 rounded-[2rem] font-black text-lg tracking-widest transition-all duration-300 active:scale-95 shadow-2xl ${
+              isTracking 
+              ? 'bg-rose-600 text-white shadow-rose-900/40 border-t border-white/20' 
+              : 'bg-cyan-500 text-slate-950 shadow-cyan-900/40'
+            }`}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            {isTracking ? "STOP RECORDING" : "START NEW WALK"}
+          </button>
         </div>
-      </main>
-    </div>
+      </div>
+
+      {/* Subtle vignette effect to make the map look more premium */}
+      <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_150px_rgba(0,0,0,0.6)] z-0" />
+    </main>
   );
 }
