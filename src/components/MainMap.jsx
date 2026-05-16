@@ -14,6 +14,7 @@ const fixLeafletIcons = () => {
   });
 };
 
+// Auto-pans the map when actively walking
 function RecenterMap({ position }) {
   const map = useMap();
   const hasCentered = useRef(false);
@@ -26,36 +27,69 @@ function RecenterMap({ position }) {
   return null;
 }
 
+// Auto-frames the map around your past walks
+function CenterOnHeatmap({ points, isTracking }) {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (isTracking || !points || points.length === 0) return;
+
+    try {
+      // Filter for valid objects and map to Leaflet-friendly arrays
+      const validPoints = points
+        .filter(p => p && p.lat !== undefined && p.lng !== undefined)
+        .map(p => [p.lat, p.lng]);
+
+      if (validPoints.length > 0) {
+        const bounds = L.latLngBounds(validPoints);
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16, animate: true });
+      }
+    } catch (e) {
+      console.error("Bounding box error:", e);
+    }
+  }, [points, map, isTracking]);
+
+  return null;
+}
+
 const calculateDistance = (path) => {
   if (path.length < 2) return 0;
   let total = 0;
-  const R = 6371; // Earth's radius in km
+  const R = 6371; 
   for (let i = 0; i < path.length - 1; i++) {
-    const [lat1, lon1] = path[i];
-    const [lat2, lon2] = path[i+1];
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+    const p1 = path[i];
+    const p2 = path[i+1];
+    // Use .lat and .lng instead of indices
+    const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+    const dLon = (p2.lng - p1.lng) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(p1.lat*Math.PI/180) * Math.cos(p2.lat*Math.PI/180) * Math.sin(dLon/2)**2;
     total += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
   return total;
 };
 
 export default function MainMap({ isTracking, onUpdateDistance, onWalkFinish }) {
-  const [path, setPath] = useState([]);
+  const [path, setPath] = useState([]); // Stores {lat, lng, timestamp}
   const [history, setHistory] = useState([]);
   const [currentPos, setCurrentPos] = useState(null);
   const [error, setError] = useState(null);
   const watcherRef = useRef(null);
 
-  // Load past walks on mount
   useEffect(() => {
     fixLeafletIcons();
     const savedHistory = localStorage.getItem("walkHistory");
-    if (savedHistory) setHistory(JSON.parse(savedHistory));
+    if (savedHistory) {
+      try {
+        const parsed = JSON.parse(savedHistory);
+        // Clean history: Ensure we only keep objects, not old arrays
+        const cleaned = parsed.filter(p => p && typeof p === 'object' && !Array.isArray(p));
+        setHistory(cleaned);
+      } catch (e) {
+        setHistory([]);
+      }
+    }
   }, []);
 
-  // Save to history when tracking stops
   const prevTrackingRef = useRef(isTracking);
   useEffect(() => {
     if (prevTrackingRef.current && !isTracking && path.length > 0) {
@@ -68,7 +102,6 @@ export default function MainMap({ isTracking, onUpdateDistance, onWalkFinish }) 
     prevTrackingRef.current = isTracking;
   }, [isTracking, path, history, onWalkFinish]);
 
-  // GPS Engine
   useEffect(() => {
     if (!navigator.geolocation) {
       setError("Geolocation not supported");
@@ -78,18 +111,25 @@ export default function MainMap({ isTracking, onUpdateDistance, onWalkFinish }) 
     watcherRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
-        if (accuracy > 100) return; // Ignore bad signals
+        if (accuracy > 100) return; 
 
-        const newPos = [latitude, longitude];
-        setCurrentPos(newPos);
+        // CREATE OBJECT FORMAT
+        const newPoint = {
+          lat: latitude,
+          lng: longitude,
+          timestamp: Date.now()
+        };
+
+        setCurrentPos([latitude, longitude]);
         setError(null);
         
         if (isTracking) {
           setPath((prev) => {
             const lastPoint = prev[prev.length - 1];
-            if (lastPoint && lastPoint[0] === newPos[0] && lastPoint[1] === newPos[1]) return prev;
+            // Update duplicate check for objects
+            if (lastPoint && lastPoint.lat === newPoint.lat && lastPoint.lng === newPoint.lng) return prev;
             
-            const newPath = [...prev, newPos];
+            const newPath = [...prev, newPoint];
             onUpdateDistance(calculateDistance(newPath));
             return newPath;
           });
@@ -104,7 +144,7 @@ export default function MainMap({ isTracking, onUpdateDistance, onWalkFinish }) 
     };
   }, [isTracking, onUpdateDistance]);
 
-  const allHeatmapPoints = useMemo(() => [...history, ...path], [history, path]);
+  const allPoints = useMemo(() => [...history, ...path], [history, path]);
 
   return (
     <div className="relative h-full w-full bg-slate-950 z-0">
@@ -117,12 +157,25 @@ export default function MainMap({ isTracking, onUpdateDistance, onWalkFinish }) 
 
       <MapContainer center={[20.5937, 78.9629]} zoom={5} zoomControl={false} className="h-full w-full">
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-        <HeatmapLayer points={allHeatmapPoints} />
-        <Polyline positions={path} pathOptions={{ color: "#22d3ee", weight: 6, lineJoin: 'round' }} />
+        
+        {/* MAP TO ARRAYS ONLY FOR THE RENDERERS */}
+        <HeatmapLayer points={allPoints.map(p => [p.lat, p.lng])} />
+        
+        <CenterOnHeatmap points={history} isTracking={isTracking} />
+
+        <Polyline 
+          positions={path.map(p => [p.lat, p.lng])} 
+          pathOptions={{ 
+            color: "#fde047", 
+            weight: 2,        
+            opacity: 0.6,     
+            lineJoin: 'round' 
+          }} 
+        />
 
         {currentPos && (
           <>
-            <CircleMarker center={currentPos} radius={8} pathOptions={{ fillColor: "#22d3ee", fillOpacity: 1, color: "white", weight: 2 }} />
+            <CircleMarker center={currentPos} radius={8} pathOptions={{ fillColor: "#fde047", fillOpacity: 1, color: "white", weight: 2 }} />
             <RecenterMap position={currentPos} />
           </>
         )}
