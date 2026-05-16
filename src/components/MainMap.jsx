@@ -13,7 +13,7 @@ const fixLeafletIcons = () => {
     shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
   });
 };
-
+// test done
 // Auto-pans the map when actively walking
 function RecenterMap({ position }) {
   const map = useMap();
